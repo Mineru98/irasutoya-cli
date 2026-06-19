@@ -1,0 +1,31 @@
+{
+  "name": "irasutoya-cli",
+  "owner": {
+    "name": "Mineru98",
+    "url": "https://github.com/Mineru98"
+  },
+  "metadata": {
+    "description": "Marketplace for the Irasutoya Search Claude Code plugin.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "irasutoya-search",
+      "source": "./.claude/plugins/irasutoya-search",
+      "description": "Search Irasutoya illustrations through the irasutoya CLI with verified release fallback.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Mineru98",
+        "url": "https://github.com/Mineru98"
+      },
+      "homepage": "https://github.com/Mineru98/irasutoya-cli",
+      "license": "MIT",
+      "keywords": [
+        "irasutoya",
+        "illustrations",
+        "cli",
+        "search"
+      ]
+    }
+  ]
+}
