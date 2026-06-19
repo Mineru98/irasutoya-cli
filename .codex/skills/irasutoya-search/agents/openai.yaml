@@ -1,0 +1,4 @@
+interface:
+  display_name: "Irasutoya Search"
+  short_description: "Search Irasutoya with the CLI"
+  default_prompt: "Use $irasutoya-search to find cat illustrations."
