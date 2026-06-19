@@ -55,3 +55,7 @@ vendor/bundle
 .rvmrc
 
 # End of https://www.gitignore.io/api/ruby
+.DS_Store
+.omx
+.omc
+.ouroboros

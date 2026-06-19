@@ -1,15 +1,17 @@
 version: 2
 updates:
-  - package-ecosystem: bundler
+  - package-ecosystem: github-actions
     directory: "/"
     schedule:
-      interval: daily
+      interval: weekly
       time: "12:00"
       timezone: Asia/Tokyo
-    open-pull-requests-limit: 20
-    allow:
-      - dependency-type: direct
-      - dependency-type: indirect
-    ignore:
-      - dependency-name: parallel
-        update-types: ["version-update:semver-major"]
+    open-pull-requests-limit: 10
+
+  - package-ecosystem: gomod
+    directory: "/"
+    schedule:
+      interval: weekly
+      time: "12:00"
+      timezone: Asia/Tokyo
+    open-pull-requests-limit: 10
