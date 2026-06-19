@@ -4,9 +4,55 @@ Languages: **English** | [日本語](./README.ja.md) | [中文](./README.zh.md) 
 
 ![irasutoya-cli English demo](./images/demo-en.gif)
 
-## Agent Skill Installation
+## Claude Code / Codex Installation
 
-This repository includes agent skills that run the real `irasutoya` CLI search wrapper. Claude Code project skills live under `.claude/skills/<skill-name>/SKILL.md`, and plugin skills live under `<plugin>/skills/<skill-name>/SKILL.md`; those layouts match the Claude Code skills and plugins documentation.
+This repository is a Claude Code **plugin marketplace** and also ships standalone Claude and Codex skills. All of them run the real `irasutoya` CLI search wrapper. Project skills live under `.claude/skills/<skill-name>/SKILL.md` and plugin skills under `<plugin>/skills/<skill-name>/SKILL.md`, matching the Claude Code skills and plugins documentation. Pick the path that fits your workflow.
+
+### Claude Plugin — Marketplace (recommended)
+
+This is the standard way to install a Claude Code plugin. Add the repository as a marketplace, then install the plugin from it:
+
+```text
+/plugin marketplace add Mineru98/irasutoya-cli
+/plugin install irasutoya-search@irasutoya-cli
+```
+
+Or non-interactively from your shell:
+
+```sh
+claude plugin marketplace add Mineru98/irasutoya-cli
+claude plugin install irasutoya-search@irasutoya-cli
+```
+
+Then invoke the namespaced skill:
+
+```text
+/irasutoya-search:irasutoya-search cat
+```
+
+### Claude Plugin — Local directory (development)
+
+Load the plugin straight from a local checkout, without a marketplace:
+
+```sh
+claude --plugin-dir .claude/plugins/irasutoya-search
+```
+
+Invoke it the same way (`/irasutoya-search:irasutoya-search cat`). After editing plugin files in a running session, run `/reload-plugins` or restart Claude Code.
+
+### Claude Project Skill (no plugin)
+
+Start Claude Code from the repository root so it discovers `.claude/skills/irasutoya-search`:
+
+```sh
+claude
+```
+
+Then invoke the un-namespaced skill:
+
+```text
+/irasutoya-search cat
+```
 
 ### Codex Skill
 
@@ -18,35 +64,21 @@ python .codex/skills/irasutoya-search/scripts/irasutoya_search.py cat
 
 In Codex, invoke it as `$irasutoya-search` or ask for an Irasutoya illustration search in natural language.
 
-### Claude Project Skill
+### Verify the plugin loads
 
-Start Claude Code from the repository root so it discovers `.claude/skills/irasutoya-search`:
-
-```sh
-claude
-```
-
-Then invoke:
-
-```text
-/irasutoya-search cat
-```
-
-### Claude Plugin
-
-Load the local plugin package directly while developing or testing:
+Validate the manifests and inspect the registered skill before publishing or after changes:
 
 ```sh
-claude --plugin-dir .claude/plugins/irasutoya-search
+# Validate the marketplace and plugin manifests (use --strict in CI)
+claude plugin validate .claude-plugin/marketplace.json --strict
+claude plugin validate .claude/plugins/irasutoya-search --strict
+
+# After installing, confirm the skill is registered
+claude plugin list
+claude plugin details irasutoya-search
 ```
 
-Then invoke the namespaced skill:
-
-```text
-/irasutoya-search:irasutoya-search cat
-```
-
-After changing plugin files in a running Claude Code session, run `/reload-plugins` or restart Claude Code.
+`claude plugin details irasutoya-search` should report `Skills (1) irasutoya-search`.
 
 [![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/Mineru98/irasutoya-cli.svg)](https://libraries.io/github/Mineru98/irasutoya-cli)
 ![GitHub](https://img.shields.io/github/license/Mineru98/irasutoya-cli.svg)

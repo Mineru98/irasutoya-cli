@@ -7,6 +7,82 @@
 [![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/Mineru98/irasutoya-cli.svg)](https://libraries.io/github/Mineru98/irasutoya-cli)
 ![GitHub](https://img.shields.io/github/license/Mineru98/irasutoya-cli.svg)
 
+## Claude Code / Codex 安装
+
+本仓库既是一个 Claude Code **插件市场（marketplace）**，也附带独立的 Claude / Codex 技能。它们都会运行真实的 `irasutoya` CLI 搜索封装。项目技能位于 `.claude/skills/<技能名>/SKILL.md`，插件技能位于 `<插件>/skills/<技能名>/SKILL.md`，均遵循 Claude Code 技能与插件文档的约定。请根据你的工作流选择合适的方式。
+
+### Claude 插件 — 市场安装（推荐）
+
+这是安装 Claude Code 插件的标准方式。先将仓库添加为市场，再从中安装插件：
+
+```text
+/plugin marketplace add Mineru98/irasutoya-cli
+/plugin install irasutoya-search@irasutoya-cli
+```
+
+也可以在 shell 中以非交互方式运行：
+
+```sh
+claude plugin marketplace add Mineru98/irasutoya-cli
+claude plugin install irasutoya-search@irasutoya-cli
+```
+
+安装后，调用带命名空间的技能：
+
+```text
+/irasutoya-search:irasutoya-search cat
+```
+
+### Claude 插件 — 本地目录（开发用）
+
+无需市场，直接从本地检出加载插件：
+
+```sh
+claude --plugin-dir .claude/plugins/irasutoya-search
+```
+
+调用方式相同（`/irasutoya-search:irasutoya-search cat`）。在运行中的会话内修改插件文件后，请运行 `/reload-plugins` 或重启 Claude Code。
+
+### Claude 项目技能（无需插件）
+
+从仓库根目录启动 Claude Code，它会自动发现 `.claude/skills/irasutoya-search`：
+
+```sh
+claude
+```
+
+调用不带命名空间的技能：
+
+```text
+/irasutoya-search cat
+```
+
+### Codex 技能
+
+使用仓库内的项目本地 Codex 技能：
+
+```sh
+python .codex/skills/irasutoya-search/scripts/irasutoya_search.py cat
+```
+
+在 Codex 中，以 `$irasutoya-search` 调用，或用自然语言请求搜索 Irasutoya 插画。
+
+### 验证插件是否加载
+
+在发布前或变更后，验证清单并检查已注册的技能：
+
+```sh
+# 验证市场和插件清单（CI 中使用 --strict）
+claude plugin validate .claude-plugin/marketplace.json --strict
+claude plugin validate .claude/plugins/irasutoya-search --strict
+
+# 安装后确认技能已注册
+claude plugin list
+claude plugin details irasutoya-search
+```
+
+`claude plugin details irasutoya-search` 的输出应显示 `Skills (1) irasutoya-search`。
+
 ## 安装
 
 原生 Go CLI 是面向 Windows、macOS 和 Linux 的跨平台发布目标。

@@ -7,6 +7,82 @@
 [![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/Mineru98/irasutoya-cli.svg)](https://libraries.io/github/Mineru98/irasutoya-cli)
 ![GitHub](https://img.shields.io/github/license/Mineru98/irasutoya-cli.svg)
 
+## Claude Code / Codex のインストール
+
+このリポジトリは Claude Code の**プラグインマーケットプレイス**であり、スタンドアロンの Claude / Codex スキルも同梱しています。いずれも実際の `irasutoya` CLI 検索ラッパーを実行します。プロジェクトスキルは `.claude/skills/<スキル名>/SKILL.md` に、プラグインスキルは `<プラグイン>/skills/<スキル名>/SKILL.md` に配置され、Claude Code のスキル・プラグインのドキュメントに従います。ワークフローに合った方法を選んでください。
+
+### Claude プラグイン — マーケットプレイス（推奨）
+
+Claude Code プラグインをインストールする標準的な方法です。リポジトリをマーケットプレイスとして追加し、そこからプラグインをインストールします。
+
+```text
+/plugin marketplace add Mineru98/irasutoya-cli
+/plugin install irasutoya-search@irasutoya-cli
+```
+
+シェルから非対話的に実行することもできます。
+
+```sh
+claude plugin marketplace add Mineru98/irasutoya-cli
+claude plugin install irasutoya-search@irasutoya-cli
+```
+
+インストール後、名前空間付きのスキルを呼び出します。
+
+```text
+/irasutoya-search:irasutoya-search cat
+```
+
+### Claude プラグイン — ローカルディレクトリ（開発用）
+
+マーケットプレイスを使わずに、ローカルのチェックアウトから直接プラグインを読み込みます。
+
+```sh
+claude --plugin-dir .claude/plugins/irasutoya-search
+```
+
+呼び出し方は同じです（`/irasutoya-search:irasutoya-search cat`）。実行中のセッションでプラグインファイルを編集した場合は、`/reload-plugins` を実行するか Claude Code を再起動してください。
+
+### Claude プロジェクトスキル（プラグインなし）
+
+リポジトリのルートから Claude Code を起動すると、`.claude/skills/irasutoya-search` が自動的に認識されます。
+
+```sh
+claude
+```
+
+名前空間なしのスキルを呼び出します。
+
+```text
+/irasutoya-search cat
+```
+
+### Codex スキル
+
+リポジトリに含まれるプロジェクトローカルの Codex スキルを使用します。
+
+```sh
+python .codex/skills/irasutoya-search/scripts/irasutoya_search.py cat
+```
+
+Codex では `$irasutoya-search` で呼び出すか、自然言語で Irasutoya のイラスト検索を依頼してください。
+
+### プラグインの読み込みを検証する
+
+公開前や変更後に、マニフェストを検証し登録済みのスキルを確認します。
+
+```sh
+# マーケットプレイスとプラグインのマニフェストを検証（CI では --strict を使用）
+claude plugin validate .claude-plugin/marketplace.json --strict
+claude plugin validate .claude/plugins/irasutoya-search --strict
+
+# インストール後、スキルが登録されているか確認
+claude plugin list
+claude plugin details irasutoya-search
+```
+
+`claude plugin details irasutoya-search` の出力に `Skills (1) irasutoya-search` が表示されるはずです。
+
 ## セットアップ
 
 ネイティブ Go CLI は、Windows、macOS、Linux 向けのクロスプラットフォーム配布ターゲットです。
