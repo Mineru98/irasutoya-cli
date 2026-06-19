@@ -4,6 +4,50 @@ Languages: **English** | [日本語](./README.ja.md) | [中文](./README.zh.md) 
 
 ![irasutoya-cli English demo](./images/demo-en.gif)
 
+## Agent Skill Installation
+
+This repository includes agent skills that run the real `irasutoya` CLI search wrapper. Claude Code project skills live under `.claude/skills/<skill-name>/SKILL.md`, and plugin skills live under `<plugin>/skills/<skill-name>/SKILL.md`; those layouts match the Claude Code skills and plugins documentation.
+
+### Codex Skill
+
+Use the project-local Codex skill from this repository:
+
+```sh
+python .codex/skills/irasutoya-search/scripts/irasutoya_search.py cat
+```
+
+In Codex, invoke it as `$irasutoya-search` or ask for an Irasutoya illustration search in natural language.
+
+### Claude Project Skill
+
+Start Claude Code from the repository root so it discovers `.claude/skills/irasutoya-search`:
+
+```sh
+claude
+```
+
+Then invoke:
+
+```text
+/irasutoya-search cat
+```
+
+### Claude Plugin
+
+Load the local plugin package directly while developing or testing:
+
+```sh
+claude --plugin-dir .claude/plugins/irasutoya-search
+```
+
+Then invoke the namespaced skill:
+
+```text
+/irasutoya-search:irasutoya-search cat
+```
+
+After changing plugin files in a running Claude Code session, run `/reload-plugins` or restart Claude Code.
+
 [![Code Climate](https://codeclimate.com/github/Mineru98/irasutoya-cli/badges/gpa.svg)](https://codeclimate.com/github/Mineru98/irasutoya-cli)
 [![codecov](https://codecov.io/gh/Mineru98/irasutoya-cli/branch/master/graph/badge.svg)](https://codecov.io/gh/Mineru98/irasutoya-cli)
 [![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/Mineru98/irasutoya-cli.svg)](https://libraries.io/github/Mineru98/irasutoya-cli)

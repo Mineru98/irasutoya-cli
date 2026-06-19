@@ -1,0 +1,19 @@
+{
+  "name": "irasutoya-search",
+  "displayName": "Irasutoya Search",
+  "version": "1.0.0",
+  "description": "Search Irasutoya illustrations through the irasutoya CLI with verified release fallback.",
+  "author": {
+    "name": "Mineru98",
+    "url": "https://github.com/Mineru98"
+  },
+  "homepage": "https://github.com/Mineru98/irasutoya-cli",
+  "repository": "https://github.com/Mineru98/irasutoya-cli",
+  "license": "MIT",
+  "keywords": [
+    "irasutoya",
+    "illustrations",
+    "cli",
+    "search"
+  ]
+}
