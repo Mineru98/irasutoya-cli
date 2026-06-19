@@ -48,8 +48,6 @@ Then invoke the namespaced skill:
 
 After changing plugin files in a running Claude Code session, run `/reload-plugins` or restart Claude Code.
 
-[![Code Climate](https://codeclimate.com/github/Mineru98/irasutoya-cli/badges/gpa.svg)](https://codeclimate.com/github/Mineru98/irasutoya-cli)
-[![codecov](https://codecov.io/gh/Mineru98/irasutoya-cli/branch/master/graph/badge.svg)](https://codecov.io/gh/Mineru98/irasutoya-cli)
 [![Libraries.io dependency status for GitHub repo](https://img.shields.io/librariesio/github/Mineru98/irasutoya-cli.svg)](https://libraries.io/github/Mineru98/irasutoya-cli)
 ![GitHub](https://img.shields.io/github/license/Mineru98/irasutoya-cli.svg)
 
