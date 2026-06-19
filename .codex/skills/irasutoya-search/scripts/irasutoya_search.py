@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import io
 import json
+import os
 import platform
 import re
 import shutil
@@ -163,12 +164,42 @@ def verify_sha256(content: bytes, expected_digest: str, asset_name: str) -> None
         raise IrasutoyaSearchError(f"checksum mismatch for {asset_name}: expected {expected_digest}, got {actual}")
 
 
+def file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def assert_within(path: Path, base: Path) -> Path:
     resolved_path = path.resolve()
     resolved_base = base.resolve()
     if resolved_path != resolved_base and resolved_base not in resolved_path.parents:
         raise IrasutoyaSearchError(f"path escapes cache directory: {path}")
     return resolved_path
+
+
+def is_link_like(path: Path) -> bool:
+    is_junction = getattr(path, "is_junction", None)
+    return path.is_symlink() or (bool(is_junction()) if is_junction else False)
+
+
+def assert_safe_cache_path(path: Path) -> Path:
+    base = Path(os.path.abspath(BIN_DIR))
+    lexical_path = Path(os.path.abspath(path))
+    if is_link_like(base):
+        raise IrasutoyaSearchError(f"cache path contains symlink or junction: {base}")
+    try:
+        relative_parts = lexical_path.relative_to(base).parts
+    except ValueError as exc:
+        raise IrasutoyaSearchError(f"path escapes cache directory: {path}") from exc
+    current = base
+    for part in relative_parts:
+        current = current / part
+        if is_link_like(current):
+            raise IrasutoyaSearchError(f"cache path contains symlink or junction: {current}")
+    return assert_within(lexical_path, base)
 
 
 def safe_extract_zip(content: bytes, destination: Path) -> None:
@@ -207,25 +238,67 @@ def cache_root_for(release: Release, target: Target) -> Path:
     return BIN_DIR / safe_tag / target.cache_key
 
 
+def verified_marker_path(cache_dir: Path) -> Path:
+    return cache_dir / ".verified.json"
+
+
+def write_verified_marker(cache_dir: Path, release: Release, target: Target, asset_name: str, archive_digest: str, exe: Path) -> None:
+    marker = verified_marker_path(cache_dir)
+    marker.write_text(
+        json.dumps(
+            {
+                "tag": release.tag_name,
+                "target": target.cache_key,
+                "asset": asset_name,
+                "archive_sha256": archive_digest,
+                "exe": exe.name,
+                "exe_sha256": file_sha256(exe),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def verified_cached_executable(cache_dir: Path, target: Target) -> Path | None:
+    cache_dir = assert_safe_cache_path(cache_dir)
+    exe = assert_safe_cache_path(cache_dir / target.exe_name)
+    marker = assert_safe_cache_path(verified_marker_path(cache_dir))
+    if not exe.is_file() or not marker.is_file():
+        return None
+    try:
+        data = json.loads(marker.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if data.get("target") != target.cache_key or data.get("exe") != target.exe_name:
+        return None
+    expected_digest = data.get("exe_sha256")
+    if not isinstance(expected_digest, str) or not re.fullmatch(r"[0-9a-f]{64}", expected_digest):
+        return None
+    if file_sha256(exe) != expected_digest:
+        return None
+    return exe
+
+
 def cached_candidates(target: Target) -> list[Path]:
     if not BIN_DIR.exists():
         return []
     candidates: list[Path] = []
     for tag_dir in BIN_DIR.iterdir():
-        cache_dir = tag_dir / target.cache_key
-        exe = cache_dir / target.exe_name
-        marker = cache_dir / ".verified.json"
-        if exe.is_file() and marker.is_file():
-            candidates.append(assert_within(exe, BIN_DIR))
+        exe = verified_cached_executable(tag_dir / target.cache_key, target)
+        if exe is not None:
+            candidates.append(exe)
     return sorted(candidates, key=lambda path: path.stat().st_mtime, reverse=True)
 
 
 def download_release_binary(repo: str, target: Target) -> Path:
     release = latest_release(repo)
     destination = cache_root_for(release, target)
-    cached = destination / target.exe_name
-    if cached.is_file():
-        return assert_within(cached, destination)
+    destination = assert_safe_cache_path(destination)
+    cached = verified_cached_executable(destination, target)
+    if cached is not None:
+        return cached
 
     archive_asset = select_archive_asset(release, target)
     checksum_asset = select_checksum_asset(release)
@@ -241,25 +314,16 @@ def download_release_binary(repo: str, target: Target) -> Path:
         else:
             safe_extract_tar(archive_bytes, temp_dir)
         exe = find_executable(temp_dir, target)
+        assert_safe_cache_path(destination.parent)
         destination.parent.mkdir(parents=True, exist_ok=True)
+        assert_safe_cache_path(destination.parent)
         if destination.exists():
+            assert_safe_cache_path(destination)
             shutil.rmtree(destination)
         shutil.copytree(temp_dir, destination)
-        marker = destination / ".verified.json"
-        marker.write_text(
-            json.dumps(
-                {
-                    "tag": release.tag_name,
-                    "target": target.cache_key,
-                    "asset": archive_asset.name,
-                    "sha256": archive_digest,
-                },
-                indent=2,
-                sort_keys=True,
-            ),
-            encoding="utf-8",
-        )
-        return assert_within(destination / exe.relative_to(temp_dir), destination)
+        copied_exe = assert_safe_cache_path(destination / exe.relative_to(temp_dir))
+        write_verified_marker(destination, release, target, archive_asset.name, archive_digest, copied_exe)
+        return copied_exe
 
 
 def resolve_binary(explicit_binary: str | None, repo: str, no_download: bool = False) -> Path:
@@ -299,6 +363,9 @@ def parse_results(output: str) -> list[dict[str, object]]:
         raw_key, raw_value = line.split(":", 1)
         mapped = field_map.get(raw_key.strip())
         value = raw_value.strip()
+        if mapped == "page_url" and current:
+            results.append(current)
+            current = {}
         if mapped == "image_urls":
             current.setdefault("image_urls", [])
             assert isinstance(current["image_urls"], list)

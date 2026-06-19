@@ -23,6 +23,17 @@ def release_with(*names: str) -> subject.Release:
     )
 
 
+def write_valid_marker(cache_dir: Path, exe: Path, target: subject.Target) -> None:
+    subject.write_verified_marker(
+        cache_dir,
+        subject.Release("v1.2.3", ()),
+        target,
+        f"irasutoya_v1.2.3_{target.cache_key}{target.archive_ext}",
+        "0" * 64,
+        exe,
+    )
+
+
 class TargetTests(unittest.TestCase):
     def test_os_arch_mapping(self) -> None:
         cases = [
@@ -68,6 +79,20 @@ class ChecksumTests(unittest.TestCase):
             subject.verify_sha256(b"changed", expected, "irasutoya_v1.2.3_linux_amd64.tar.gz")
 
 
+class GitHubReleaseTests(unittest.TestCase):
+    def test_github_404_reports_no_published_release_blocker(self) -> None:
+        error = subject.urllib.error.HTTPError(
+            "https://api.github.com/repos/Mineru98/irasutoya-cli/releases/latest",
+            404,
+            "Not Found",
+            {},
+            None,
+        )
+        with mock.patch.object(subject.urllib.request, "urlopen", side_effect=error):
+            with self.assertRaisesRegex(subject.IrasutoyaSearchError, "no published release"):
+                subject.latest_release(subject.DEFAULT_REPO)
+
+
 class ExtractionTests(unittest.TestCase):
     def test_zip_path_traversal_is_rejected(self) -> None:
         data = io.BytesIO()
@@ -99,6 +124,37 @@ class ExtractionTests(unittest.TestCase):
                 subject.safe_extract_tar(data.getvalue(), Path(tmp))
 
 
+class CachePathSafetyTests(unittest.TestCase):
+    def test_rejects_symlinked_bin_dir(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            real_bin = root / "real-bin"
+            real_bin.mkdir()
+            linked_bin = root / "bin"
+            try:
+                linked_bin.symlink_to(real_bin, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"directory symlink unavailable: {exc}")
+            with mock.patch.object(subject, "BIN_DIR", linked_bin):
+                with self.assertRaisesRegex(subject.IrasutoyaSearchError, "symlink or junction"):
+                    subject.assert_safe_cache_path(linked_bin / "v1.2.3")
+
+    def test_rejects_symlinked_cache_component(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_root = Path(tmp) / "bin"
+            cache_root.mkdir()
+            real_tag = cache_root / "real-tag"
+            real_tag.mkdir()
+            linked_tag = cache_root / "v1.2.3"
+            try:
+                linked_tag.symlink_to(real_tag, target_is_directory=True)
+            except (OSError, NotImplementedError) as exc:
+                self.skipTest(f"directory symlink unavailable: {exc}")
+            with mock.patch.object(subject, "BIN_DIR", cache_root):
+                with self.assertRaisesRegex(subject.IrasutoyaSearchError, "symlink or junction"):
+                    subject.assert_safe_cache_path(linked_tag / "linux_amd64")
+
+
 class ResolutionTests(unittest.TestCase):
     def test_path_first_resolution(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -126,10 +182,57 @@ class ResolutionTests(unittest.TestCase):
             cache_dir.mkdir(parents=True)
             exe = cache_dir / "irasutoya"
             exe.write_text("", encoding="utf-8")
+            target = subject.Target("linux", "amd64", ".tar.gz", "irasutoya")
             with mock.patch.object(subject, "BIN_DIR", cache_root):
-                self.assertEqual(subject.cached_candidates(subject.Target("linux", "amd64", ".tar.gz", "irasutoya")), [])
+                self.assertEqual(subject.cached_candidates(target), [])
                 (cache_dir / ".verified.json").write_text("{}", encoding="utf-8")
-                self.assertEqual(subject.cached_candidates(subject.Target("linux", "amd64", ".tar.gz", "irasutoya")), [exe.resolve()])
+                self.assertEqual(subject.cached_candidates(target), [])
+                write_valid_marker(cache_dir, exe, target)
+                self.assertEqual(subject.cached_candidates(target), [exe.resolve()])
+
+    def test_cached_candidates_reject_tampered_executable(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_root = Path(tmp) / "bin"
+            cache_dir = cache_root / "v1.2.3" / "linux_amd64"
+            cache_dir.mkdir(parents=True)
+            exe = cache_dir / "irasutoya"
+            exe.write_text("original", encoding="utf-8")
+            target = subject.Target("linux", "amd64", ".tar.gz", "irasutoya")
+            with mock.patch.object(subject, "BIN_DIR", cache_root):
+                write_valid_marker(cache_dir, exe, target)
+                exe.write_text("tampered", encoding="utf-8")
+                self.assertEqual(subject.cached_candidates(target), [])
+
+    def test_download_release_binary_reuses_only_verified_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_root = Path(tmp) / "bin"
+            target = subject.Target("linux", "amd64", ".tar.gz", "irasutoya")
+            release = release_with("irasutoya_v1.2.3_linux_amd64.tar.gz", "checksums.txt")
+            cache_dir = cache_root / "v1.2.3" / "linux_amd64"
+            cache_dir.mkdir(parents=True)
+            exe = cache_dir / "irasutoya"
+            exe.write_text("verified", encoding="utf-8")
+            with mock.patch.object(subject, "BIN_DIR", cache_root), mock.patch.object(subject, "latest_release", return_value=release), mock.patch.object(
+                subject, "download_bytes", side_effect=AssertionError("download should not run")
+            ):
+                write_valid_marker(cache_dir, exe, target)
+                self.assertEqual(subject.download_release_binary(subject.DEFAULT_REPO, target), exe.resolve())
+
+    def test_download_release_binary_rejects_invalid_verified_cache(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            cache_root = Path(tmp) / "bin"
+            target = subject.Target("linux", "amd64", ".tar.gz", "irasutoya")
+            release = release_with("irasutoya_v1.2.3_linux_amd64.tar.gz", "checksums.txt")
+            cache_dir = cache_root / "v1.2.3" / "linux_amd64"
+            cache_dir.mkdir(parents=True)
+            exe = cache_dir / "irasutoya"
+            exe.write_text("unverified", encoding="utf-8")
+            (cache_dir / ".verified.json").write_text("{}", encoding="utf-8")
+            with mock.patch.object(subject, "BIN_DIR", cache_root), mock.patch.object(subject, "latest_release", return_value=release), mock.patch.object(
+                subject, "download_bytes", side_effect=subject.IrasutoyaSearchError("download attempted")
+            ):
+                with self.assertRaisesRegex(subject.IrasutoyaSearchError, "download attempted"):
+                    subject.download_release_binary(subject.DEFAULT_REPO, target)
 
 
 class ParserAndCommandTests(unittest.TestCase):
@@ -148,6 +251,21 @@ Image URL:   https://example.test/b.png
         self.assertEqual(len(results), 2)
         self.assertEqual(results[0]["title"], "Cat")
         self.assertEqual(results[1]["image_urls"], ["https://example.test/b.png"])
+
+    def test_parse_adjacent_result_blocks_without_blank_separator(self) -> None:
+        output = """Page URL:    https://example.test/a
+Title:       Cat
+Description: Cat desc
+Image URL:   https://example.test/a.png
+Page URL:    https://example.test/b
+Title:       Dog
+Description: Dog desc
+Image URL:   https://example.test/b.png
+"""
+        results = subject.parse_results(output)
+        self.assertEqual(len(results), 2)
+        self.assertEqual(results[0]["page_url"], "https://example.test/a")
+        self.assertEqual(results[1]["title"], "Dog")
 
     def test_open_images_flag_is_explicit_only(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
